@@ -20,12 +20,15 @@ import androidx.compose.ui.unit.sp
 import com.example.test2.ui.theme.Test2Theme
 import kotlin.math.round
 
+// Подключает экран
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Разрешаем контенту рисоваться под статус-баром и навигационной панелью.
         enableEdgeToEdge()
         setContent {
             Test2Theme {
+                // Scaffold даёт корректные внутренние отступы (innerPadding)
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     CalculatorScreen(modifier = Modifier.padding(innerPadding))
                 }
@@ -34,36 +37,42 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// Основная логика калькулятора
 @Stable
 class CalculatorState {
-    // 1. Предыдущее выражение (маленький серый)
+
+    // 1-я строка Display: история выражения, маленький серый шрифт.
     var expression by mutableStateOf("")
         private set
 
-    // 2. Текущая операция
+    // 2-я строка Display: знак текущей операции, если она выбрана.
     var currentOperationSymbol by mutableStateOf("")
         private set
 
-    // 3. Текущее число (крупный шрифт)
+    // 3-я строка Display: текущее число/результат, крупный шрифт.
     var display by mutableStateOf("0")
         private set
 
-    private var total: Double = 0.0           // накопленная сумма слагаемых
-    private var term: Double = 0.0            // текущее слагаемое (* и / работают здесь)
-    private var pendingAdditive: String? = null // отложенный + или -
-    private var lastOp: String? = null
-    private var waitingForOperand = false
-    private var justEvaluated = false
-    private var currentInput = "0"
+    // ---------- Внутреннее состояние вычислений ----------
 
+    private var total: Double = 0.0 // накопленная сумма слагаемых
+    private var term: Double = 0.0 // текущее слагаемое
+    private var pendingAdditive: String? = null // акой +/− ждёт завершения × ÷?
+    private var lastOp: String? = null // Какая операция сейчас активна?
+    private var waitingForOperand = false // ждём ввода нового числа
+    private var justEvaluated = false // true сразу после "="
+    private var currentInput = "0" // текущее вводимое число
+
+    // Обрабатывает нажатие цифровой кнопки (0–9).
     fun onDigit(digit: String) {
         if (justEvaluated) clearAll()
 
+        // проверяется начался набор нового числа или нет
         if (waitingForOperand) {
-            currentInput = digit
-            waitingForOperand = false
+            currentInput = digit // начинаем новое число с этой цифры
+            waitingForOperand = false // теперь число есть — больше не ждём
         } else {
-            currentInput = if (currentInput == "0") digit else currentInput + digit
+            currentInput = if (currentInput == "0") digit else currentInput + digit // продолжаем текущее
         }
         display = currentInput
         updateExpression()
@@ -75,19 +84,22 @@ class CalculatorState {
         if (waitingForOperand) {
             currentInput = "0,"
             waitingForOperand = false
-        } else if (!currentInput.contains(',')) {
+        } else if (!currentInput.contains(',')) { // Защита от второй запятой в одном числе
             currentInput += ","
         }
         display = currentInput
         updateExpression()
     }
 
+    // Обрабатывает нажатие "⌫" (backspace).
     fun onBackspace() {
+        // очищаем весь калькулятор после равно
         if (justEvaluated) {
             clearAll()
             return
         }
 
+        // Удаление оператора
         if (waitingForOperand) {
             if (lastOp != null) {
                 lastOp = null
@@ -100,6 +112,7 @@ class CalculatorState {
             return
         }
 
+        // удаление последней цифры
         if (currentInput.length <= 1) {
             currentInput = "0"
         } else {
@@ -109,21 +122,24 @@ class CalculatorState {
         updateExpression()
     }
 
+    // Полный сброс калькулятора
     fun onClear() = clearAll()
 
     fun onOperator(op: String) {
+        // Продолжаем вычисления от результата.
         if (justEvaluated) {
-            justEvaluated = false
-            term = parse(currentInput)
-            total = term
-            pendingAdditive = null
-            lastOp = null
+            justEvaluated = false // больше не "только что был ="
+            term = parse(currentInput) // результат становится текущим слагаемым
+            total = term // и накопленной суммой
+            pendingAdditive = null // очищаем отложенный +/-
+            lastOp = null // очищаем последнюю операцию
         }
 
+        // проверка оператора
         val value = parse(currentInput)
         val isMultiplicative = op == "*" || op == "/"
 
-        // Два оператора подряд — просто меняем
+        // защита от «двойного оператора»
         if (waitingForOperand && lastOp != null) {
             lastOp = op
             currentOperationSymbol = symbolOf(op)
@@ -131,17 +147,16 @@ class CalculatorState {
             return
         }
 
-        // Применяем предыдущую операцию
+        // Применяем предыдущую операцию к введённому числу.
         apply(value)
 
         lastOp = op
         currentOperationSymbol = symbolOf(op)
 
         if (isMultiplicative) {
-            // * и / работают только внутри term
-            // pendingAdditive не трогаем
+            // × и ÷ работают внутри term; pendingAdditive не трогаем.
         } else {
-            // + или - : фиксируем текущий term в total
+            // + или − : сворачиваем текущий term в total.
             if (pendingAdditive != null) {
                 total = applyOp(total, term, pendingAdditive!!) ?: Double.NaN
             } else {
@@ -155,15 +170,16 @@ class CalculatorState {
         updateExpression()
     }
 
+    // Обрабатывает нажатие "="
     fun onEquals() {
         if (lastOp == null && pendingAdditive == null) return
 
         val value = parse(currentInput)
 
-        // Применяем последнюю операцию
+        // Применяем последнюю операцию.
         apply(value)
 
-        // Финальное свёртывание отложенного +/–
+        // Финальное свёртывание отложенного +/–.
         val result = if (pendingAdditive != null) {
             applyOp(total, term, pendingAdditive!!) ?: Double.NaN
         } else {
@@ -177,7 +193,7 @@ class CalculatorState {
         expression = buildFullExpression(value)
         currentOperationSymbol = ""
 
-        // Готовим к продолжению
+        // Готовим к продолжению: результат становится текущим значением
         total = result
         term = result
         pendingAdditive = null
@@ -186,16 +202,13 @@ class CalculatorState {
         justEvaluated = true
     }
 
-    // -------------------- внутренние методы --------------------
-
+    // Объявляем куда положить текущее число
     private fun apply(value: Double) {
         when (lastOp) {
             "*", "/" -> {
                 term = applyOp(term, value, lastOp!!) ?: Double.NaN
             }
             "+", "-" -> {
-                // При +/– value становится новым term
-                // (старый term уже был учтён при нажатии оператора)
                 term = value
             }
             null -> {
@@ -205,22 +218,19 @@ class CalculatorState {
         }
     }
 
+    // обновляем отображаемое значение
     private fun updateExpression() {
         expression = when {
             lastOp == null && pendingAdditive == null -> ""
-            waitingForOperand -> {
-                val left = if (pendingAdditive != null) formatNumber(total) else formatNumber(term)
-                val op = lastOp ?: pendingAdditive
-                "$left ${symbolOf(op!!)}"
-            }
             else -> {
                 val left = if (pendingAdditive != null) formatNumber(total) else formatNumber(term)
                 val op = lastOp ?: pendingAdditive
-                "$left ${symbolOf(op!!)}"
+                if (op != null) "$left ${symbolOf(op)}" else ""
             }
         }
     }
 
+    // собирает полное выражение для истории
     private fun buildFullExpression(lastValue: Double): String {
         val left = if (pendingAdditive != null) formatNumber(total) else formatNumber(term)
         val op = lastOp ?: pendingAdditive
@@ -231,6 +241,7 @@ class CalculatorState {
         }
     }
 
+    // Полный сброс всех полей к исходным значениям
     private fun clearAll() {
         expression = ""
         currentOperationSymbol = ""
@@ -244,15 +255,14 @@ class CalculatorState {
         justEvaluated = false
     }
 
-    private fun parse(str: String): Double =
-        str.replace(',', '.').toDoubleOrNull() ?: 0.0
-
+    // Преобразует внутренний код операции в отображаемый символ (×, ÷)
     private fun symbolOf(op: String) = when (op) {
         "*" -> "×"
         "/" -> "÷"
         else -> op
     }
 
+    // Чистая арифметика
     private fun applyOp(a: Double, b: Double, op: String): Double? = when (op) {
         "+" -> a + b
         "-" -> a - b
@@ -261,23 +271,27 @@ class CalculatorState {
         else -> null
     }
 
+    // Форматирует число для отображения: целые без ".0", дробные — с запятой.
     private fun formatNumber(value: Double): String {
         if (value.isNaN() || value.isInfinite()) return "Ошибка"
         return if (value % 1.0 == 0.0) value.toLong().toString()
         else value.toString().replace('.', ',')
     }
 
+    // Форматирует результат вычисления: округляет до 10 знаков
     private fun formatResult(value: Double): String {
         if (value.isNaN() || value.isInfinite()) return "Ошибка"
-        val rounded = kotlin.math.round(value * 1e10) / 1e10
+        val rounded = round(value * 1e10) / 1e10
         return formatNumber(rounded)
     }
 }
 
+// Настройка габаритов экрана
 @Composable
 fun CalculatorScreen(modifier: Modifier = Modifier) {
     val state = remember { CalculatorState() }
 
+    // адаптация под ориентацию экрана
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val isLandscape = maxWidth > maxHeight
         val horizontalPadding = if (isLandscape) 24.dp else 16.dp
@@ -285,6 +299,7 @@ fun CalculatorScreen(modifier: Modifier = Modifier) {
         val buttonHeight = if (isLandscape) 48.dp else 64.dp
         val displayFontSize = if (isLandscape) 40.sp else 56.sp
 
+        // отображение приложения если горизонтально
         if (isLandscape) {
             Row(
                 modifier = Modifier
@@ -307,7 +322,9 @@ fun CalculatorScreen(modifier: Modifier = Modifier) {
                         .fillMaxHeight()
                 )
             }
-        } else {
+        }
+        // отображение приложения если вертикально
+        else {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -331,6 +348,7 @@ fun CalculatorScreen(modifier: Modifier = Modifier) {
     }
 }
 
+// История последнего вычесления
 @Composable
 fun DisplayArea(
     state: CalculatorState,
@@ -342,7 +360,7 @@ fun DisplayArea(
         verticalArrangement = Arrangement.Bottom,
         horizontalAlignment = Alignment.End
     ) {
-        // 1 Предыдущее выражение / число — маленький серый
+        // Предыдущее выражение / число — маленький серый.
         Text(
             text = state.expression,
             fontSize = 16.sp,
@@ -355,7 +373,7 @@ fun DisplayArea(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // 2 Текущая операция
+        // Текущая операция — знак операции, если введена.
         Text(
             text = state.currentOperationSymbol,
             fontSize = 24.sp,
@@ -368,7 +386,7 @@ fun DisplayArea(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // 3 Текущее число — крупный шрифт
+        // Текущее число — крупный шрифт.
         Text(
             text = state.display,
             fontSize = displayFontSize,
@@ -381,6 +399,9 @@ fun DisplayArea(
     }
 }
 
+private fun parse(str: String): Double = str.replace(',', '.').toDoubleOrNull() ?: 0.0
+
+// Что будет на кнопке и где она будет
 @Composable
 fun KeyboardArea(
     state: CalculatorState,
@@ -421,6 +442,7 @@ fun KeyboardArea(
                         }
                     )
                 }
+                // Добиваем ряд пустыми местами, чтобы кнопки не растягивались.
                 repeat(4 - row.size) {
                     Spacer(modifier = Modifier.weight(1f))
                 }
@@ -429,26 +451,28 @@ fun KeyboardArea(
     }
 }
 
+// Универсальная кнопка калькулятора.
 @Composable
-fun CalculatorButton(
-    label: String,
-    height: androidx.compose.ui.unit.Dp,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
+fun CalculatorButton(label: String, height: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier, onClick: () -> Unit)
+{
+    // Определяется тип кнопки
     val isOperator = label in listOf("+", "-", "*", "/", "=")
     val isClear = label == "C" || label == "⌫"
 
+    // Цвет фона кнопки
     val containerColor = when {
         isOperator -> MaterialTheme.colorScheme.primary
         isClear -> MaterialTheme.colorScheme.errorContainer
         else -> MaterialTheme.colorScheme.surfaceVariant
     }
+
+    // Цвет текста на кнопке
     val contentColor = when {
         isOperator -> Color.White
         else -> MaterialTheme.colorScheme.onSurface
     }
 
+    // Визуал кнопки
     Button(
         onClick = onClick,
         modifier = modifier.height(height),
@@ -463,6 +487,7 @@ fun CalculatorButton(
     }
 }
 
+// Отображение на панельке справа
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun CalculatorPreview() {
