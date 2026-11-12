@@ -342,7 +342,7 @@ fun DisplayArea(
         verticalArrangement = Arrangement.Bottom,
         horizontalAlignment = Alignment.End
     ) {
-        // 1. Предыдущее выражение / число — маленький серый
+        // 1 Предыдущее выражение / число — маленький серый
         Text(
             text = state.expression,
             fontSize = 16.sp,
@@ -355,7 +355,7 @@ fun DisplayArea(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // 2. Текущая операция
+        // 2 Текущая операция
         Text(
             text = state.currentOperationSymbol,
             fontSize = 24.sp,
@@ -368,7 +368,7 @@ fun DisplayArea(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // 3. Текущее число — крупный шрифт
+        // 3 Текущее число — крупный шрифт
         Text(
             text = state.display,
             fontSize = displayFontSize,
