@@ -11,6 +11,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -471,21 +473,39 @@ fun DisplayArea(
     displayFontSize: androidx.compose.ui.unit.TextUnit,
     modifier: Modifier = Modifier
 ) {
+    // Отдельные ScrollState для истории и для числа
+    val expressionScroll = rememberScrollState()
+    val displayScroll = rememberScrollState()
+
+    // Автоскролл истории вправо при изменении
+    LaunchedEffect(state.expression) {
+        expressionScroll.scrollTo(expressionScroll.maxValue)
+    }
+    // Автоскролл числа вправо при изменении
+    LaunchedEffect(state.display) {
+        displayScroll.scrollTo(displayScroll.maxValue)
+    }
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.Bottom,
         horizontalAlignment = Alignment.End
     ) {
         // Предыдущее выражение / число — маленький серый.
-        Text(
-            text = state.expression,
-            fontSize = 16.sp,
-            color = Color.Gray,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.End,
-            modifier = Modifier.fillMaxWidth()
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(expressionScroll),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Text(
+                text = state.expression,
+                fontSize = 16.sp,
+                color = Color.Gray,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
 
         Spacer(modifier = Modifier.height(4.dp))
 
@@ -502,16 +522,21 @@ fun DisplayArea(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Текущее число — крупный шрифт.
-        Text(
-            text = state.display,
-            fontSize = displayFontSize,
-            fontWeight = FontWeight.Light,
-            textAlign = TextAlign.End,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth()
-        )
+        // Текущее число — крупный шрифт (со скроллом и автоскроллом вправо).
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(displayScroll),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Text(
+                text = state.display,
+                fontSize = displayFontSize,
+                fontWeight = FontWeight.Light,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
     }
 }
 
