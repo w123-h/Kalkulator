@@ -76,7 +76,7 @@ class CalculatorState {
                 lastOp = null
                 currentOperationSymbol = ""
                 waitingForOperand = false
-                currentInput = CalculatorMath.formatNumber(term)
+                currentInput = TextTools.formatNumber(term)
                 display = currentInput
                 updateExpression()
             }
@@ -96,20 +96,20 @@ class CalculatorState {
         // Продолжаем вычисления от результата.
         if (justEvaluated) {
             justEvaluated = false // больше не "только что был ="
-            term = CalculatorMath.parse(currentInput) // результат становится текущим слагаемым
+            term = TextTools.parseNumber(currentInput) // результат становится текущим слагаемым
             total = term // и накопленной суммой
             pendingAdditive = null // очищаем отложенный +/-
             lastOp = null // очищаем последнюю операцию
         }
 
         // проверка оператора
-        val value = CalculatorMath.parse(currentInput)
+        val value = TextTools.parseNumber(currentInput)
         val isMultiplicative = op == "*" || op == "/"
 
         // защита от «двойного оператора»
         if (waitingForOperand && lastOp != null) {
             lastOp = op
-            currentOperationSymbol = CalculatorMath.symbolOf(op)
+            currentOperationSymbol = TextTools.symbolOf(op)
             updateExpression()
             return
         }
@@ -118,7 +118,7 @@ class CalculatorState {
         apply(value)
 
         lastOp = op
-        currentOperationSymbol = CalculatorMath.symbolOf(op)
+        currentOperationSymbol = TextTools.symbolOf(op)
 
         if (!isMultiplicative) {
             // + или − : сворачиваем текущий term в total.
@@ -139,7 +139,7 @@ class CalculatorState {
     fun onEquals() {
         if (lastOp == null && pendingAdditive == null) return
 
-        val value = CalculatorMath.parse(currentInput)
+        val value = TextTools.parseNumber(currentInput)
 
         // Применяем последнюю операцию.
         apply(value)
@@ -151,7 +151,7 @@ class CalculatorState {
             term
         }
 
-        currentInput = CalculatorMath.formatResult(result)
+        currentInput = TextTools.formatResult(result)
         display = currentInput
 
         // История
@@ -174,13 +174,13 @@ class CalculatorState {
             justEvaluated = false
         }
 
-        val value = CalculatorMath.parse(currentInput)
+        val value = TextTools.parseNumber(currentInput)
         if (value < 0.0) {
             showError()
             return
         }
 
-        currentInput = CalculatorMath.formatResult(kotlin.math.sqrt(value))
+        currentInput = TextTools.formatResult(kotlin.math.sqrt(value))
         display = currentInput
         // после √ можно сразу нажимать оператор
         waitingForOperand = false
@@ -191,13 +191,13 @@ class CalculatorState {
     fun onPower() {
         if (justEvaluated) {
             justEvaluated = false
-            term = CalculatorMath.parse(currentInput)
+            term = TextTools.parseNumber(currentInput)
             total = term
             pendingAdditive = null
             lastOp = null
         }
 
-        val value = CalculatorMath.parse(currentInput)
+        val value = TextTools.parseNumber(currentInput)
 
         // защита от «двойного оператора»
         if (waitingForOperand && lastOp != null) {
@@ -236,12 +236,12 @@ class CalculatorState {
             lastOp == null && pendingAdditive == null -> ""
             else -> {
                 val left = if (pendingAdditive != null) {
-                    CalculatorMath.formatNumber(total)
+                    TextTools.formatNumber(total)
                 } else {
-                    CalculatorMath.formatNumber(term)
+                    TextTools.formatNumber(term)
                 }
                 val op = lastOp ?: pendingAdditive
-                if (op != null) "$left ${CalculatorMath.symbolOf(op)}" else ""
+                if (op != null) "$left ${TextTools.symbolOf(op)}" else ""
             }
         }
     }
@@ -249,15 +249,15 @@ class CalculatorState {
     // собирает полное выражение для истории
     private fun buildFullExpression(lastValue: Double): String {
         val left = if (pendingAdditive != null) {
-            CalculatorMath.formatNumber(total)
+            TextTools.formatNumber(total)
         } else {
-            CalculatorMath.formatNumber(term)
+            TextTools.formatNumber(term)
         }
         val op = lastOp ?: pendingAdditive
         return if (op != null) {
-            "$left ${CalculatorMath.symbolOf(op)} ${CalculatorMath.formatNumber(lastValue)}"
+            "$left ${TextTools.symbolOf(op)} ${TextTools.formatNumber(lastValue)}"
         } else {
-            CalculatorMath.formatNumber(lastValue)
+            TextTools.formatNumber(lastValue)
         }
     }
 
